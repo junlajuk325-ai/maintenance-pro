@@ -227,11 +227,27 @@
         const LINE_PROXY_URL = "https://script.google.com/macros/s/AKfycbwUFbsr4MfBme-gmCbmqf04WMjdkfQGwb0rMmRiiqzJOwvPTSMNy9oeLBWeuqiPxINXEw/exec"; // <--- เอาลิงก์ยาวๆ ที่ลงท้ายด้วย /exec มาวางในเครื่องหมายคำพูดนี้
 
         // --- ตั้งค่าพื้นฐาน ---
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'hospital-standalone-v16';
-        let db, auth, user, jobs = [], charts = {};
-        let activeFilters = { dept: 'All', status: 'All', priority: 'All' };
-        let wizardStep = 1, draft = { dept: '', type: '', priority: '', detail: '' };
+        // Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyCj5QBk6Eroz6voLcU7btDiwW722ZTvX5U",
+  authDomain: "maintenance-pro-e9bc1.firebaseapp.com",
+  projectId: "maintenance-pro-e9bc1",
+  storageBucket: "maintenance-pro-e9bc1.firebasestorage.app",
+  messagingSenderId: "97910892002",
+  appId: "1:97910892002:web:8eff74624f21ee3c0e45bb",
+  measurementId: "G-S7WZ6WDJ2Q"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 
         const DEPTS = ["ICU", "OPD", "Lab", "ห้องผ่าตัด", "ระบุหน่วยงานอื่นเอง"];
         const ASSETS = ["ระบบไฟฟ้าหลัก", "Generator/UPS", "แอร์/ระบบลม", "ประปา/สุขาภิบาล", "เครื่องมือแพทย์", "อื่น ๆ"];
@@ -485,3 +501,4 @@
 </body>
 
 </html>
+
