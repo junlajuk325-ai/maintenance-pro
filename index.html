@@ -216,7 +216,7 @@
     </div>
 
     <!-- Firebase SDK & Script -->
-    <script type="module">
+    <script >
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -501,4 +501,5 @@ const analytics = getAnalytics(app);
 </body>
 
 </html>
+
 
