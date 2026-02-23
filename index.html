@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>งานแจ้งซ่อมและบำรุงรักษา | BI Dashboard Standalone</title>
+    <!-- ใช้งาน Tailwind, ChartJS และ Lucide Icons -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap');
+        
+        :root {
+            --pbi-blue: #005a9e;
+            --pbi-bg: #f3f2f1;
+            --pbi-card: #ffffff;
+            --pbi-border: #edebe9;
+        }
+
+        body { 
+            font-family: 'Kanit', sans-serif; 
+            background-color: var(--pbi-bg); 
+            color: #323130;
+        }
+
+        .pbi-card { 
+            background: var(--pbi-card); 
+            border: 1px solid var(--pbi-border); 
+            box-shadow: 0 1.6px 3.6px 0 rgba(0,0,0,0.132);
+            border-radius: 4px;
+        }
+
+        .slicer-select {
+            background: white; border: 1px solid #8a8886; border-radius: 2px;
+            padding: 6px 12px; font-size: 13px; font-weight: 600; outline: none; min-width: 150px;
+        }
+
+        .slicer-select:focus { border-color: var(--pbi-blue); box-shadow: 0 0 0 2px rgba(0, 90, 158, 0.1); }
+
+        .wizard-step { display: none; }
+        .wizard-step.active { display: flex; flex-direction: column; }
+        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        
+        th { font-weight: 700; color: #605e5c; padding: 12px 16px; border-bottom: 1px solid var(--pbi-border); font-size: 12px; text-transform: uppercase; }
+        td { padding: 14px 16px; border-bottom: 1px solid #f3f2f1; vertical-align: middle; }
+
+        .line-bg { background-color: #7494c0; }
+        .medical-gradient { background: linear-gradient(135deg, #0078d4 0%, #00188f 100%); }
+        
+        @keyframes ring { 0%, 100% { transform: rotate(0deg); } 10%, 30%, 50% { transform: rotate(8deg); } 20%, 40% { transform: rotate(-8deg); } }
+        .bell-ring { animation: ring 2.5s infinite; }
+        
+        .btn-pbi { background: #0078d4; color: white; padding: 8px 16px; border-radius: 2px; font-size: 12px; font-weight: 600; transition: background 0.2s; }
+        .btn-pbi:hover { background: #005a9e; }
+    </style>
+</head>
+<body class="pb-20 lg:pb-0">
+
+    <!-- แถบนำทางด้านบน (BI Top Bar) -->
+    <header class="bg-[#00188f] text-white px-6 py-2.5 flex justify-between items-center sticky top-0 z-50 shadow-md">
+        <div class="flex items-center gap-4">
+            <i data-lucide="bar-chart-3" class="w-5 h-5 text-yellow-400"></i>
+            <h1 class="text-sm font-bold tracking-widest uppercase italic">HOSPITAL MAINTENANCE PRO - FINAL</h1>
+        </div>
+        <div class="flex items-center gap-6">
+            <div id="conn-status" class="hidden md:flex items-center gap-2 border-r border-white/20 pr-6">
+                <span id="conn-dot" class="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse"></span>
+                <span class="text-[10px] font-black uppercase opacity-80">Cloud Sync Active</span>
+            </div>
+            <div class="flex bg-white/10 p-0.5 rounded-sm gap-0.5">
+                <button onclick="switchView('dashboard')" id="btn-dash" class="px-4 py-1 text-[10px] font-black uppercase transition-all bg-white text-blue-900 shadow-sm">สรุปภาพรวม</button>
+                <button onclick="switchView('report')" id="btn-report" class="px-4 py-1 text-[10px] font-black uppercase transition-all text-white/60 hover:text-white">แจ้งซ่อม</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- แถบตัวกรองข้อมูล (Global Slicers) -->
+    <section id="slicer-panel" class="bg-white border-b border-gray-200 px-6 py-4 flex flex-wrap items-center gap-6 sticky top-[44px] z-40 shadow-sm">
+        <div class="flex items-center gap-2 pr-4 border-r border-gray-100">
+            <i data-lucide="filter" class="w-4 h-4 text-blue-600"></i>
+            <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Filters</span>
+        </div>
+        <div class="flex items-center gap-3">
+            <label class="text-[11px] font-bold text-gray-500 uppercase">แผนก:</label>
+            <select id="slicer-dept" onchange="runGlobalFilters()" class="slicer-select">
+                <option value="All">ทุกแผนก (All Units)</option>
+                <option value="ICU">ICU</option>
+                <option value="OPD">OPD</option>
+                <option value="Lab">Lab</option>
+                <option value="ห้องผ่าตัด">ห้องผ่าตัด</option>
+            </select>
+        </div>
+        <div class="flex items-center gap-3">
+            <label class="text-[11px] font-bold text-gray-500 uppercase">สถานะ:</label>
+            <select id="slicer-status" onchange="runGlobalFilters()" class="slicer-select">
+                <option value="All">ทุกสถานะ (All Status)</option>
+                <option value="รอดำเนินการ">รอดำเนินการ</option>
+                <option value="กำลังดำเนินการ">กำลังดำเนินการ</option>
+                <option value="เสร็จแล้ว">เสร็จแล้ว</option>
+            </select>
+        </div>
+        <button onclick="resetSlicers()" class="ml-auto text-[10px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1.5 uppercase">
+            <i data-lucide="rotate-ccw" class="w-3 h-3"></i> รีเซ็ตตัวกรอง
+        </button>
+    </section>
+
+    <!-- พื้นที่แสดงเนื้อหา -->
+    <main class="max-w-[1600px] mx-auto p-4 lg:p-6 flex flex-col lg:flex-row gap-6">
+
+        <!-- ฝั่งซ้าย: Dashboard & Grid -->
+        <div class="flex-1 space-y-6 animate-in fade-in duration-300">
+            
+            <div id="view-dashboard" class="space-y-6">
+                <!-- แถวที่ 1: KPI บัตรตัวเลข -->
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4" id="kpi-row"></div>
+
+                <!-- แถวที่ 2: กราฟวิเคราะห์ -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="pbi-card p-6 h-80 flex flex-col">
+                        <h3 class="text-[11px] font-bold text-gray-500 uppercase border-b border-gray-100 pb-3 mb-6 tracking-widest">สถานะงาน (Job Status)</h3>
+                        <div class="flex-1 relative min-h-0"><canvas id="statusChart"></canvas></div>
+                    </div>
+                    <div class="lg:col-span-2 pbi-card p-6 h-80 flex flex-col">
+                        <h3 class="text-[11px] font-bold text-gray-500 uppercase border-b border-gray-100 pb-3 mb-6 tracking-widest text-right">จำนวนงานแยกตามแผนกหลัก</h3>
+                        <div class="flex-1 relative min-h-0"><canvas id="buildingChart"></canvas></div>
+                    </div>
+                </div>
+
+                <!-- แถวที่ 3: พื้นที่ Critical Monitor -->
+                <div class="space-y-3">
+                    <h3 class="text-[11px] font-black text-gray-400 uppercase tracking-widest px-1 italic leading-none">เฝ้าระวังพื้นที่ Critical (Live)</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-4" id="area-monitor"></div>
+                </div>
+
+                <!-- แถวที่ 4: ตารางข้อมูลอัจฉริยะ -->
+                <div class="pbi-card overflow-hidden">
+                    <div class="bg-gray-50 px-6 py-4 border-b border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div class="flex items-center gap-4">
+                            <h3 class="text-[11px] font-black text-gray-600 uppercase tracking-widest leading-none">Maintenance Data History</h3>
+                            <div class="relative w-full md:w-80">
+                                <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4"></i>
+                                <input type="text" id="grid-search" oninput="renderTable()" placeholder="ค้นหาใบงาน / ชื่อช่าง / แผนก..." class="w-full pl-10 pr-4 py-1.5 border border-gray-300 rounded-sm text-xs outline-none focus:border-blue-500 font-bold shadow-sm">
+                            </div>
+                        </div>
+                        <button onclick="exportCSV()" class="bg-emerald-700 hover:bg-emerald-800 text-white px-5 py-1.5 rounded-sm text-[10px] font-black uppercase flex items-center gap-2 transition-all shadow-md active:scale-95">
+                            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> DOWNLOAD EXCEL (CSV)
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto no-scrollbar">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead>
+                                <tr class="bg-[#fafafa]">
+                                    <th>ใบงาน / เวลาแจ้ง</th>
+                                    <th>แผนก / หน่วยงาน</th>
+                                    <th>อาการที่พบ</th>
+                                    <th>ช่างผู้ดูแล</th>
+                                    <th>สถานะ</th>
+                                    <th class="text-right">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-body" class="bg-white"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- มุมมองการแจ้งซ่อม (Wizard) -->
+            <div id="view-report" class="hidden animate-in zoom-in-95 duration-300 max-w-2xl mx-auto pb-20">
+                <div class="bg-white rounded-lg shadow-2xl overflow-hidden border border-gray-200 min-h-[600px] flex flex-col">
+                    <div class="medical-gradient p-10 text-white relative">
+                        <button onclick="switchView('dashboard')" class="absolute top-4 right-4 text-white/50 hover:text-white transition-all"><i data-lucide="x"></i></button>
+                        <h2 class="text-3xl font-black italic mb-2 tracking-tighter uppercase leading-none">แจ้งซ่อมและบำรุงรักษา</h2>
+                        <p class="text-[10px] font-bold uppercase tracking-widest opacity-70">Hospital Smart Assistant v16.0</p>
+                        <div class="flex gap-1.5 mt-10" id="wizard-progress">
+                            <div class="h-1.5 flex-1 bg-white rounded-full transition-all"></div>
+                            <div class="h-1.5 flex-1 bg-white/20 rounded-full transition-all"></div>
+                            <div class="h-1.5 flex-1 bg-white/20 rounded-full transition-all"></div>
+                            <div class="h-1.5 flex-1 bg-white/20 rounded-full transition-all"></div>
+                        </div>
+                    </div>
+                    <div class="p-10 flex-1 flex flex-col justify-center" id="wizard-content"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ฝั่งขวา: LINE Notify Simulator (Side Bar) -->
+        <aside class="w-full lg:w-80 shrink-0">
+            <div class="pbi-card overflow-hidden flex flex-col h-[600px] lg:h-[800px] line-bg relative border-blue-200 shadow-xl">
+                <div class="bg-[#242424]/15 backdrop-blur px-5 py-4 flex items-center justify-between border-b border-white/10">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold border-2 border-white/30 text-sm shadow-lg">L</div>
+                        <div><h4 class="text-white font-bold leading-none text-xs tracking-tight">กลุ่มแจ้งซ่อมบำรุง</h4><p class="text-white/70 text-[9px] mt-1.5 uppercase font-black tracking-widest leading-none">LINE Notifier</p></div>
+                    </div>
+                </div>
+                <div id="line-messages" class="flex-1 p-5 overflow-y-auto space-y-4 no-scrollbar">
+                    <div class="flex justify-center text-white/30 text-[10px] font-bold uppercase italic leading-none tracking-widest">-- เริ่มรับการแจ้งเตือน --</div>
+                </div>
+                <div class="bg-white p-4 border-t border-gray-100 flex items-center gap-2 italic text-[10px] font-bold text-gray-400">
+                    <i data-lucide="bell-ring" class="w-3 h-3 text-emerald-500"></i> แจ้งเตือนส่งเข้ากลุ่มไลน์แล้ว
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- หน้าต่างจัดการงาน (Manage Modal) -->
+    <div id="modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[60] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg w-full max-w-5xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-300 max-h-[90vh] overflow-y-auto no-scrollbar" id="modal-content"></div>
+    </div>
+
+    <!-- แจ้งเตือน Toast -->
+    <div id="toast" class="fixed bottom-24 lg:bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-8 py-4 rounded-sm shadow-2xl z-[100] hidden flex items-center gap-4 border-l-4 border-emerald-500 transition-all duration-500">
+        <i data-lucide="check-circle" class="w-5 h-5 text-emerald-500"></i>
+        <span id="toast-text" class="text-xs font-bold uppercase tracking-widest italic leading-none">Success</span>
+    </div>
+
+    <!-- Firebase SDK & Script -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // =========================================================================
+        // ⚡ สำคัญมาก: ใส่ลิงก์จาก GOOGLE APPS SCRIPT ที่คุณสร้างไว้ที่บรรทัดด้านล่างนี้
+        // =========================================================================
+        const LINE_PROXY_URL = "https://script.google.com/macros/s/AKfycbwUFbsr4MfBme-gmCbmqf04WMjdkfQGwb0rMmRiiqzJOwvPTSMNy9oeLBWeuqiPxINXEw/exec"; // <--- เอาลิงก์ยาวๆ ที่ลงท้ายด้วย /exec มาวางในเครื่องหมายคำพูดนี้
+
+        // --- ตั้งค่าพื้นฐาน ---
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'hospital-standalone-v16';
+        let db, auth, user, jobs = [], charts = {};
+        let activeFilters = { dept: 'All', status: 'All', priority: 'All' };
+        let wizardStep = 1, draft = { dept: '', type: '', priority: '', detail: '' };
+
+        const DEPTS = ["ICU", "OPD", "Lab", "ห้องผ่าตัด", "ระบุหน่วยงานอื่นเอง"];
+        const ASSETS = ["ระบบไฟฟ้าหลัก", "Generator/UPS", "แอร์/ระบบลม", "ประปา/สุขาภิบาล", "เครื่องมือแพทย์", "อื่น ๆ"];
+        const PRIORITIES = [
+            { id: 'Critical', label: 'Critical (วิกฤต)', color: '#d83b01' },
+            { id: 'High', label: 'High (ด่วนมาก)', color: '#ea4335' },
+            { id: 'Medium', label: 'Medium (ปกติ)', color: '#0078d4' },
+            { id: 'Low', label: 'Low (ทั่วไป)', color: '#107c10' }
+        ];
+
+        // 1. เริ่มเชื่อมต่อ
+        async function init() {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app); auth = getAuth(app);
+                
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else { await signInAnonymously(auth); }
+
+                onAuthStateChanged(auth, (u) => {
+                    user = u;
+                    if (u) {
+                        document.getElementById('conn-status').classList.remove('hidden');
+                        syncData();
+                    }
+                });
+            } catch (err) { render(); }
+        }
+
+        function syncData() {
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'maintenance_jobs'), (snap) => {
+                jobs = snap.docs.map(d => ({ id: d.id, ...d.data() })); render();
+            });
+        }
+
+        // 2. ระบบส่งไลน์ (LINE Notifier)
+        window.triggerLine = async (title, msg) => {
+            // อัปเดตตู้จำลองฝั่งขวา
+            const container = document.getElementById('line-messages');
+            const now = new Date().toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' });
+            container.insertAdjacentHTML('beforeend', `<div class="animate-in slide-in-from-left-4"><p class="text-white/60 text-[9px] font-black uppercase mb-1 ml-1 tracking-widest italic">Hospital Bot</p><div class="line-msg"><p class="font-black text-blue-700 text-[11px] border-b border-gray-100 pb-1 mb-2 uppercase italic leading-none underline decoration-blue-100">${title}</p><p class="text-[12px] font-bold text-gray-700 whitespace-pre-wrap leading-tight">${msg}</p><p class="text-[9px] text-gray-300 mt-2 text-right italic font-black tracking-tighter">${now} น.</p></div></div>`);
+            container.scrollTop = container.scrollHeight; lucide.createIcons();
+
+            // ส่งข้อมูลไปที่ LINE จริงๆ ผ่าน Google
+            if (LINE_PROXY_URL) {
+                try {
+                    await fetch(LINE_PROXY_URL, {
+                        method: "POST",
+                        mode: "no-cors",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ message: `\n[${title}]\n${msg}` })
+                    });
+                } catch (e) { console.warn("LINE Notify failed", e); }
+            }
+        };
+
+        // 3. ฟังก์ชันวาดหน้าจอ (Render Engines)
+        window.render = () => {
+            const data = getFiltered();
+            renderKPIs(data); renderCharts(data); renderAreas(jobs); renderTable(data); renderWizard(); lucide.createIcons();
+        }
+
+        function getFiltered() {
+            return jobs.filter(j => {
+                const matchDept = activeFilters.dept === 'All' || j.dept === activeFilters.dept;
+                const matchStatus = activeFilters.status === 'All' || j.status === activeFilters.status;
+                const matchPrio = activeFilters.priority === 'All' || j.priority === activeFilters.priority;
+                return matchDept && matchStatus && matchPrio;
+            });
+        }
+
+        function renderKPIs(data) {
+            const t = data.length, c = data.filter(j=>j.priority==='Critical'&&j.status!=='เสร็จแล้ว').length;
+            const o = data.filter(j=>(j.overdue||0)>0).length, d = data.filter(j=>j.status==='เสร็จแล้ว').length;
+            document.getElementById('kpi-row').innerHTML = `
+                ${createKPI('จำนวนงานรวม', t, '#005a9e')}
+                ${createKPI('งานวิกฤต', c, c>0?'#d83b01':'#a19f9d', c>0)}
+                ${createKPI('เกิน SLA', o, o>0?'#ea4335':'#a19f9d', o>0)}
+                ${createKPI('% สำเร็จ', (t?Math.round((d/t)*100):0)+'%', '#107c10')}
+                ${createKPI('งานไฟฟ้ากำลัง', data.filter(j=>['ไฟฟ้า','Generator','UPS'].some(x=>j.type?.includes(x))).length, '#ffb900')}
+            `;
+        }
+
+        function createKPI(l, v, c, a) {
+            return `<div class="pbi-card p-5 text-center transition-all hover:scale-[1.03] ${a?'ring-2 ring-red-500/20 shadow-xl':''}">
+                <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 italic leading-none">${l}</p>
+                <p class="text-3xl font-black tracking-tighter ${a?'bell-ring':''}" style="color:${c}">${v}</p>
+            </div>`;
+        }
+
+        function renderCharts(data) {
+            const sMap = { 'รอดำเนินการ':0, 'กำลังดำเนินการ':0, 'เสร็จแล้ว':0 }; data.forEach(j => sMap[j.status] !== undefined && sMap[j.status]++);
+            const ctx1 = document.getElementById('statusChart').getContext('2d'); if(charts.s) charts.s.destroy();
+            charts.s = new Chart(ctx1, { type:'pie', data:{ labels:Object.keys(sMap), datasets:[{data:Object.values(sMap), backgroundColor:['#edebe9','#0078d4','#107c10'], borderWidth:1}] }, options:{ maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, font:{ family:'Kanit', size:10 } } } } } });
+
+            const bMap = {}; ["ICU","OPD","Lab","ห้องผ่าตัด"].forEach(d => bMap[d] = data.filter(j=>j.dept===d).length);
+            const ctx2 = document.getElementById('buildingChart').getContext('2d'); if(charts.b) charts.b.destroy();
+            charts.b = new Chart(ctx2, { type:'bar', data:{ labels:Object.keys(bMap), datasets:[{data:Object.values(bMap), backgroundColor:'#005a9e', borderRadius:2}] }, options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ x:{ grid:{ display:false } }, y:{ grid:{ display:false }, ticks:{ font:{ weight:'bold' } } } } } });
+        }
+
+        function renderAreas(data) {
+            const areas = [{ n: 'ICU', i: 'activity' }, { n: 'ห้องผ่าตัด', i: 'shield-alert' }, { n: 'Lab', i: 'microscope' }, { n: 'Generator', i: 'zap' }, { n: 'ออกซิเจน', i: 'wind' }];
+            document.getElementById('area-monitor').innerHTML = areas.map(a => {
+                const count = data.filter(j => (j.dept === a.n || (j.type||'').includes(a.n)) && j.status !== 'เสร็จแล้ว').length;
+                const isCrit = data.some(j => (j.dept === a.n || (j.type||'').includes(a.n)) && j.priority === 'Critical' && j.status !== 'เสร็จแล้ว');
+                return `<div class="pbi-card p-4 flex items-center justify-between border-l-4 ${count > 0 ? (isCrit ? 'border-red-600 bg-red-50' : 'border-amber-50 bg-amber-50') : 'border-gray-200'} transition-all cursor-pointer hover:bg-gray-50">
+                    <div class="flex items-center gap-3"><div class="w-8 h-8 rounded flex items-center justify-center ${count > 0 ? (isCrit ? 'bg-red-600 text-white shadow-sm' : 'bg-amber-500 text-white shadow-sm') : 'bg-gray-100 text-gray-400'}"><i data-lucide="${a.i}" class="w-4 h-4"></i></div><span class="text-[11px] font-bold text-gray-600 uppercase tracking-tight">${a.n}</span></div>
+                    <div class="flex items-center gap-2"><span class="text-xl font-black ${count > 0 ? 'text-gray-900' : 'text-gray-200'}">${count}</span>${count > 0 && isCrit ? '<span class="w-2.5 h-2.5 bg-red-600 rounded-full animate-ping"></span>' : ''}</div>
+                </div>`;
+            }).join('');
+        }
+
+        function renderTable(data) {
+            const s = document.getElementById('grid-search').value.toLowerCase();
+            const filtered = data.filter(j => `${j.jobNo} ${j.dept} ${j.detail} ${j.owner} ${j.resolution}`.toLowerCase().includes(s)).sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+            document.getElementById('table-body').innerHTML = filtered.map(j => `
+                <tr class="hover:bg-[#f3f9ff] cursor-pointer group transition-colors" onclick="window.openManageModal('${j.id}')">
+                    <td class="px-6 py-4"><span class="font-mono font-bold text-blue-800 text-sm block leading-none italic uppercase tracking-tighter">#${j.jobNo}</span><div class="text-[9px] text-gray-400 font-bold uppercase mt-1.5 leading-none tracking-tighter italic">${j.date} ${j.time||''}</div></td>
+                    <td class="px-6 py-4 font-bold text-gray-800 uppercase tracking-tight leading-none">${j.dept}</td>
+                    <td class="px-6 py-4"><div class="font-semibold text-gray-700 text-sm line-clamp-1 italic leading-none italic">"${j.detail}"</div><div class="text-[9px] text-blue-500 font-black uppercase mt-1.5 tracking-wider uppercase leading-none italic">${j.type}</div></td>
+                    <td class="px-6 py-4">${j.owner ? `<div class="flex items-center gap-2"><div class="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-black text-[9px] uppercase border border-blue-200 shadow-sm">${j.owner.charAt(0)}</div><span class="font-black text-slate-600 text-[11px]">${j.owner}</span></div>` : '<span class="text-[10px] italic text-gray-300 font-medium tracking-tight">รอการตอบรับ...</span>'}</td>
+                    <td class="px-6 py-4"><span class="px-3 py-1 rounded-sm text-[9px] font-black uppercase ${j.status==='เสร็จแล้ว'?'bg-emerald-50 text-emerald-700':j.status==='กำลังดำเนินการ'?'bg-blue-50 text-blue-700':'bg-gray-50 text-gray-500'}">${j.status}</span></td>
+                    <td class="px-6 py-4 text-right"><button class="text-[10px] font-black text-blue-600 border border-blue-200 px-3 py-1 rounded-sm hover:bg-blue-50 uppercase tracking-tighter shadow-sm transition-all">จัดการ</button></td>
+                </tr>`).join('');
+            lucide.createIcons();
+        }
+
+        // 4. ขั้นตอนแจ้งซ่อม (Wizard)
+        function renderWizard() {
+            const content = document.getElementById('wizard-content');
+            const dots = document.getElementById('wizard-progress').children;
+            for(let i=0; i<4; i++) dots[i].className = `h-1.5 flex-1 rounded-full transition-all duration-500 ${i < wizardStep ? 'bg-white' : 'bg-white/20'}`;
+            if(wizardStep === 1) {
+                content.innerHTML = `<p class="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-10 text-center italic underline underline-offset-8 decoration-yellow-400">1. เลือกหน่วยงานของคุณ</p><div class="grid grid-cols-2 gap-4">${DEPTS.map(d => `<button onclick="handleDeptStep('${d}')" class="p-6 bg-gray-50 border border-gray-200 font-black text-gray-700 hover:border-blue-600 hover:bg-white active:scale-95 transition-all uppercase text-[13px] rounded-sm shadow-sm">${d}</button>`).join('')}</div><div id="cust-area" class="hidden mt-8 flex gap-2 animate-in slide-in-from-top-2"><input type="text" id="cust-in" placeholder="ระบุหน่วยงานเอง..." class="flex-1 p-5 border-2 border-gray-100 outline-none focus:border-blue-600 font-bold text-base shadow-inner rounded-sm"><button onclick="confirmDeptStep()" class="bg-[#00188f] text-white px-8 rounded-sm font-black text-[11px] uppercase tracking-widest shadow-xl">OK</button></div>`;
+            } else if(wizardStep === 2) {
+                content.innerHTML = `<button onclick="wizardStep=1; render();" class="text-[10px] font-black text-gray-400 uppercase mb-8 flex items-center gap-1.5 hover:text-blue-600 transition-all"><i data-lucide="chevron-left" class="w-4 h-4"></i> BACK</button><p class="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-8 text-center underline italic">2. เลือกประเภทอุปกรณ์ / งาน</p><div class="grid grid-cols-2 gap-4">${ASSETS.map(a => `<button onclick="updateWizardStep('type', '${a}')" class="p-6 bg-gray-50 border border-gray-200 font-black text-gray-700 hover:border-blue-600 hover:bg-white active:scale-95 transition-all uppercase text-[13px] rounded-sm shadow-sm">${a}</button>`).join('')}</div>`;
+            } else if(wizardStep === 3) {
+                content.innerHTML = `<button onclick="wizardStep=2; render();" class="text-[10px] font-black text-gray-400 uppercase mb-8 flex items-center gap-1.5 hover:text-blue-600 transition-all"><i data-lucide="chevron-left" class="w-4 h-4"></i> BACK</button><p class="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-10 text-center underline italic">3. ระบุระดับความเร่งด่วน</p><div class="space-y-4">${PRIORITIES.map(p => `<button onclick="updateWizardStep('priority', '${p.id}')" class="w-full p-5 border border-gray-200 flex items-center gap-6 hover:border-blue-600 transition-all text-left rounded-sm shadow-sm active:scale-95"><div class="w-4 h-4 rounded-full shadow-lg shadow-black/10" style="background:${p.color}"></div><div class="flex-1 font-black text-slate-800 uppercase tracking-tight leading-none">${p.label}</div><i data-lucide="chevron-right" class="w-5 h-5 text-gray-300"></i></button>`).join('')}</div>`;
+            } else if(wizardStep === 4) {
+                content.innerHTML = `<button onclick="wizardStep=3; render();" class="text-[10px] font-black text-gray-400 uppercase mb-8 flex items-center gap-1.5 hover:text-blue-600 transition-all"><i data-lucide="chevron-left" class="w-4 h-4"></i> BACK</button><p class="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-10 text-center italic underline font-bold decoration-yellow-400 leading-none">4. ระบุรายละเอียดอาการชำรุด</p><textarea id="detail-in" class="w-full p-8 border-2 border-gray-100 outline-none focus:border-blue-600 font-bold text-xl mb-10 h-64 text-slate-800 shadow-inner rounded-sm italic leading-relaxed" placeholder="พิมพ์ปัญหาให้ช่างทราบ..."></textarea><button onclick="submitJob()" class="w-full py-7 bg-[#00188f] text-white font-black uppercase shadow-2xl active:scale-95 transition-all text-lg flex items-center justify-center gap-4 tracking-widest rounded-sm italic leading-none"><i data-lucide="send" class="w-7 h-7 text-yellow-400"></i> ส่งใบแจ้งซ่อม</button>`;
+            }
+            lucide.createIcons();
+        }
+
+        window.handleDeptStep = (v) => { if(v.includes('ระบุ')) document.getElementById('cust-area').classList.remove('hidden'); else { draft.dept = v; wizardStep++; render(); } }
+        window.confirmDeptStep = () => { const v = document.getElementById('cust-in').value; if(v){ draft.dept = v; wizardStep++; render(); } }
+        window.updateWizardStep = (k, v) => { draft[k] = v; wizardStep++; render(); }
+
+        window.submitJob = async () => {
+            const d = document.getElementById('detail-in').value;
+            const now = new Date(), j = { jobNo:'WO-'+(Math.floor(Math.random()*9000)+1000), dept:draft.dept, type:draft.type, priority:draft.priority, detail:d||'Repair Task', status:'รอดำเนินการ', date:now.toLocaleDateString('th-TH'), time:now.toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'}), createdAt:serverTimestamp(), resolution:'' };
+            if(user) await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'maintenance_jobs'), j);
+            triggerLine("🚨 รับแจ้งซ่อมใหม่", `Ticket: #${j.jobNo}\nแผนก: ${j.dept}\nอุปกรณ์: ${j.type}\nความด่วน: ${j.priority}\nอาการ: ${j.detail}`);
+            wizardStep = 1; draft = { dept: '', type: '', priority: '', detail: '' };
+            switchView('dashboard'); showToast("DATA LOGGED & NOTIFIED ✅");
+        };
+
+        // 5. จัดการ แก้ไข ลบงาน (Full Management)
+        let isEditMode = false;
+        window.openManageModal = (id) => {
+            const j = jobs.find(x=>x.id==id); if(!j) return;
+            isEditMode = false; document.getElementById('modal').classList.remove('hidden'); renderModalContent(j);
+        };
+
+        function renderModalContent(j) {
+            const modal = document.getElementById('modal-content');
+            const fmtTs = (ts) => ts ? new Date(ts.seconds*1000).toLocaleString('th-TH') : '...';
+            modal.innerHTML = `
+                <div class="p-10 bg-[#00188f] text-white flex justify-between items-center shadow-xl">
+                    <div><span class="text-[10px] font-black opacity-60 uppercase italic">Ticket Control Center</span><h2 class="text-4xl font-black uppercase mt-1 tracking-tighter italic leading-none">#${j.jobNo}</h2></div>
+                    <button onclick="closeModal()" class="text-white/30 hover:text-white transition-all p-2 hover:bg-white/10 rounded-sm"><i data-lucide="x" class="w-8 h-8"></i></button>
+                </div>
+                <div class="p-10 grid grid-cols-1 lg:grid-cols-2 gap-12 bg-white">
+                    <div class="space-y-10">
+                        <section>
+                            <div class="flex justify-between items-center border-b border-blue-50 pb-2 mb-6"><label class="text-[10px] font-black text-blue-700 uppercase italic leading-none underline decoration-blue-500">1. ข้อมูลการแจ้งซ่อม</label><button onclick="toggleEdit('${j.id}')" class="text-[10px] font-black text-blue-500 hover:underline uppercase italic leading-none"><i data-lucide="edit-3" class="w-3 h-3 inline"></i> ${isEditMode?'ยกเลิก':'แก้ไข'}</button></div>
+                            ${isEditMode ? `<div class="space-y-3 p-6 bg-blue-50 rounded shadow-inner animate-in fade-in"><select id="ed-dept" class="w-full p-2 border text-sm font-bold uppercase tracking-tight">${DEPTS.map(d=>`<option value="${d}" ${j.dept===d?'selected':''}>${d}</option>`).join('')}</select><textarea id="ed-detail" class="w-full p-2 border text-sm h-32 font-medium leading-relaxed">${j.detail}</textarea><button onclick="commitEdit('${j.id}')" class="w-full py-3 bg-blue-600 text-white font-black text-[11px] uppercase rounded-sm shadow-lg transition-all active:scale-95">บันทึกข้อมูลแก้ไข</button></div>` : 
+                            `<div class="bg-gray-50 p-8 rounded-sm border border-gray-100 shadow-inner italic relative"><p class="text-[9px] font-black text-slate-400 uppercase mb-4 tracking-widest leading-none underline decoration-blue-200">อาการที่แจ้ง</p><p class="font-bold text-gray-800 text-xl leading-relaxed italic">"${j.detail}"</p><div class="mt-8 flex gap-2 font-black text-[10px] uppercase tracking-widest leading-none"><span class="bg-blue-800 text-white px-3 py-1.5 rounded-sm">${j.dept}</span><span class="bg-red-50 text-red-600 border border-red-100 px-3 py-1.5 rounded-sm">${j.priority}</span></div></div>`}
+                        </section>
+                        <section class="pt-6 border-t border-gray-100 flex flex-col gap-4">
+                             <div id="del-box" class="hidden animate-in fade-in"><p class="text-center text-[11px] font-black text-red-600 mb-4 uppercase italic underline decoration-red-200 underline-offset-4">ยืนยันการลบใบงานนี้ทิ้ง?</p><div class="grid grid-cols-2 gap-3"><button onclick="executeDelete('${j.id}')" class="bg-red-600 text-white py-4 font-black text-[11px] uppercase rounded-sm shadow-xl transition-all active:scale-95">ยืนยันลบ</button><button onclick="toggleDel(false)" class="bg-gray-100 text-gray-600 py-4 font-black text-[11px] uppercase rounded-sm transition-all active:scale-95">ยกเลิก</button></div></div>
+                             <button id="pre-del" onclick="toggleDel(true)" class="w-full py-4 border-2 border-red-50 text-red-400 font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-red-50 transition-all rounded-sm italic leading-none shadow-sm"><i data-lucide="trash-2" class="w-4 h-4 text-red-500"></i> ลบใบงานออกจากฐานข้อมูล (Delete Ticket)</button>
+                        </section>
+                    </div>
+                    <div class="space-y-10 bg-[#f8fafc] p-10 border border-gray-200 rounded-sm relative shadow-sm">
+                        <label class="text-[10px] font-black text-emerald-700 uppercase block mb-6 border-b border-emerald-100 pb-2 italic underline decoration-emerald-200 leading-none tracking-tight font-bold">2. การดำเนินการและรายงานผล (Technician Log)</label>
+                        ${j.status !== 'เสร็จแล้ว' ? `<div class="space-y-6"><div><label class="text-[11px] font-black text-gray-500 uppercase italic mb-2 block leading-none underline decoration-blue-100">ชื่อช่างผู้รับงาน:</label><input type="text" id="m-tech" value="${j.owner||''}" class="w-full p-5 border-2 border-gray-100 outline-none focus:border-blue-700 font-black text-base bg-white shadow-sm uppercase tracking-tight italic"></div><div><label class="text-[11px] font-black text-gray-500 uppercase italic mb-2 block leading-none underline decoration-emerald-100">รายละเอียดซ่อม:</label><textarea id="m-res" class="w-full p-5 border-2 border-gray-100 outline-none focus:border-emerald-600 font-bold text-sm h-48 bg-white shadow-sm italic leading-relaxed" placeholder="ซ่อมอะไรไปบ้าง...">${j.resolution||''}</textarea></div><div class="grid grid-cols-2 gap-4 pt-4"><button onclick="commitUpdate('${j.id}','กำลังดำเนินการ')" class="py-5 bg-[#005a9e] text-white font-black text-[11px] uppercase shadow-xl hover:bg-blue-800 tracking-widest active:scale-95 transition-all">Update State</button><button onclick="commitUpdate('${j.id}','เสร็จแล้ว')" class="py-5 bg-[#107c10] text-white font-black text-[11px] uppercase shadow-xl hover:bg-green-800 tracking-widest active:scale-95 transition-all">Resolve & Close</button></div></div>` : 
+                        `<div class="text-center py-28 bg-white border border-emerald-100 rounded shadow-inner italic relative"><i data-lucide="check-circle" class="w-16 h-16 text-emerald-500 mx-auto mb-8 shadow-sm"></i><p class="font-black text-emerald-900 uppercase tracking-tighter text-2xl leading-none underline decoration-emerald-100 underline-offset-8">Job Complete Successful</p><p class="text-[11px] text-emerald-400 font-black mt-6 uppercase tracking-widest italic border-b border-emerald-50 pb-2 inline-block leading-none">By Technician: ${j.owner}</p><div class="mt-10 px-10 text-[14px] font-bold text-gray-500 italic border-t border-gray-50 pt-8 decoration-gray-100 leading-relaxed italic border-t pt-10 underline decoration-blue-50 underline-offset-8">"${j.resolution || 'No final report provided.'}"</div></div>`}
+                    </div>
+                </div>`; lucide.createIcons();
+        }
+
+        window.toggleEdit = (id) => { isEditMode = !isEditMode; renderModalContent(jobs.find(x=>x.id==id)); };
+        window.commitEdit = async (id) => { const d = { dept:document.getElementById('ed-dept').value, detail:document.getElementById('ed-detail').value }; if(user) await updateDoc(doc(db,'artifacts',appId,'public','data','maintenance_jobs',id),d); isEditMode=false; showToast("แก้ไขข้อมูลสำเร็จ ✅"); };
+        window.toggleDel = (on) => { document.getElementById('pre-del').className = on?'hidden':'...'; document.getElementById('del-box').className = on?'block animate-in fade-in':'hidden'; };
+        window.executeDelete = async (id) => { if(user) await deleteDoc(doc(db,'artifacts',appId,'public', 'data','maintenance_jobs',id)); closeModal(); showToast("ลบใบงานทิ้งแล้ว 🗑️"); };
+
+        window.commitUpdate = async (id, s) => {
+            const t = document.getElementById('m-tech').value, r = document.getElementById('m-res').value; if(!t){ alert("กรุณาใส่ชื่อช่าง!"); return; }
+            const current = jobs.find(x=>x.id===id);
+            const data = { status:s, owner:t, resolution:r, lastUpdated:serverTimestamp() }; if(!current.startTime) data.startTime = serverTimestamp();
+            if(user) await updateDoc(doc(db,'artifacts',appId,'public','data','maintenance_jobs',id), data);
+            
+            const lineTitle = s==='กำลังดำเนินการ'?"🛠 ช่างรับงานแล้ว":"✅ ปรับปรุงแก้ไขเสร็จสิ้น";
+            const lineMsg = s==='กำลังดำเนินการ'?`ID: #${current.jobNo}\nช่างผู้รับ: ${t}\nสถานะ: กำลังดำเนินการ`: `ID: #${current.jobNo}\nช่างผู้ซ่อม: ${t}\nผลการซ่อม: ${r}\nสถานะ: ปิดงานสำเร็จ`;
+            triggerLine(lineTitle, lineMsg); closeModal(); showToast(`อัปเดตสถานะ ${s.toUpperCase()} แล้ว ✅`);
+        }
+
+        // 6. ฟังก์ชันทั่วไป
+        window.switchView = (v) => { 
+            ['dashboard','report'].forEach(id => document.getElementById(`view-${id}`).classList.add('hidden')); 
+            document.getElementById(`view-${v}`).classList.remove('hidden'); 
+            document.getElementById('slicer-panel').classList.toggle('hidden', v !== 'dashboard');
+            document.getElementById('btn-dash').className = v==='dashboard'?'px-4 py-1 text-[10px] font-black uppercase transition-all bg-white text-blue-900 shadow-sm':'px-4 py-1 text-[10px] font-black uppercase transition-all text-white/60 hover:text-white';
+            document.getElementById('btn-report').className = v==='report'?'px-4 py-1 text-[10px] font-black uppercase transition-all bg-white text-blue-900 shadow-sm':'px-4 py-1 text-[10px] font-black uppercase transition-all text-white/60 hover:text-white';
+            lucide.createIcons(); 
+        };
+        
+        window.applyGlobalFilters = () => { activeFilters.dept = document.getElementById('slicer-dept').value; activeFilters.status = document.getElementById('slicer-status').value; activeFilters.priority = document.getElementById('slicer-priority').value; render(); };
+        window.resetSlicers = () => { document.getElementById('slicer-dept').value = 'All'; document.getElementById('slicer-status').value = 'All'; document.getElementById('slicer-priority').value = 'All'; applyGlobalFilters(); };
+        window.exportCSV = () => {
+            let csv = "\uFEFF#ใบงาน,วันที่แจ้ง,แผนก,อุปกรณ์,อาการ,ความเร่งด่วน,ช่าง,การแก้ไข,สถานะ\n";
+            jobs.forEach(j => csv += `"${j.jobNo}","${j.date}","${j.dept}","${j.type}","${j.detail.replace(/"/g,'""')}","${j.priority}","${j.owner||''}","${(j.resolution||'').replace(/"/g,'""')}","${j.status}"\n`);
+            const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' })); link.setAttribute("download", "Hospital_Report.csv"); document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        }
+        window.closeModal = () => document.getElementById('modal').classList.add('hidden');
+        function showToast(m) { const t=document.getElementById('toast'); document.getElementById('toast-text').innerText=m; t.classList.remove('hidden'); setTimeout(()=>t.classList.add('hidden'),3000); }
+        window.onload = init;
+    </script>
+</body>
+</html>
